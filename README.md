@@ -12,4 +12,4 @@ Steps of the Project creation:
 4) Operational activity.
 5) Operational analysis.
 
-Payment methods - Payments in SOL.
+Payment method - Payments in SOL.
