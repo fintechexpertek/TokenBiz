@@ -1,0 +1,384 @@
+import React, { useMemo } from 'react';
+import { Routes, Route } from 'react-router-dom';
+import { Toaster } from '@/components/ui/toaster';
+import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
+import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
+import { PhantomWalletAdapter } from '@solana/wallet-adapter-wallets';
+import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
+import { clusterApiUrl } from '@solana/web3.js';
+import { AppProvider } from '@/lib/store';
+
+import Index from './pages/Index';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Listings from './pages/Listings';
+import TokenDetail from './pages/TokenDetail';
+import BusinessDashboard from './pages/BusinessDashboard';
+import InvestorDashboard from './pages/InvestorDashboard';
+import AdminPanel from './pages/AdminPanel';
+import NotFound from './pages/NotFound';
+
+import '@solana/wallet-adapter-react-ui/styles.css';
+
+const App = () => {
+  const network = WalletAdapterNetwork.Devnet;
+  const endpoint = useMemo(() => clusterApiUrl(network), [network]);
+  const wallets = useMemo(() => [new PhantomWalletAdapter()], []);
+
+  return (
+    <ConnectionProvider endpoint={endpoint}>
+      <WalletProvider wallets={wallets} autoConnect>
+        <WalletModalProvider>
+          <AppProvider>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/listings" element={<Listings />} />
+              <Route path="/listings/:id" element={<TokenDetail />} />
+              <Route path="/dashboard/business" element={<BusinessDashboard />} />
+              <Route path="/dashboard/investor" element={<InvestorDashboard />} />
+              <Route path="/admin" element={<AdminPanel />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+            <Toaster />
+          </AppProvider>
+        </WalletModalProvider>
+      </WalletProvider>
+    </ConnectionProvider>
+  );
+};
+
+export default App;
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@layer base {
+  :root {
+    --background: 220 20% 4%;
+    --foreground: 210 20% 92%;
+
+    --card: 220 18% 7%;
+    --card-foreground: 210 20% 92%;
+
+    --popover: 220 18% 7%;
+    --popover-foreground: 210 20% 92%;
+
+    --primary: 160 84% 39%;
+    --primary-foreground: 220 20% 4%;
+
+    --secondary: 220 16% 12%;
+    --secondary-foreground: 210 20% 85%;
+
+    --muted: 220 14% 14%;
+    --muted-foreground: 215 16% 50%;
+
+    --accent: 43 96% 56%;
+    --accent-foreground: 220 20% 4%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 220 16% 14%;
+    --input: 220 16% 16%;
+    --ring: 160 84% 39%;
+
+    --radius: 0.625rem;
+
+    --sidebar-background: 220 18% 6%;
+    --sidebar-foreground: 210 20% 80%;
+    --sidebar-primary: 160 84% 39%;
+    --sidebar-primary-foreground: 220 20% 4%;
+    --sidebar-accent: 220 14% 14%;
+    --sidebar-accent-foreground: 210 20% 85%;
+    --sidebar-border: 220 16% 14%;
+    --sidebar-ring: 160 84% 39%;
+
+    /* Custom tokens */
+    --success: 160 84% 39%;
+    --warning: 43 96% 56%;
+    --info: 199 89% 48%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(160 84% 39%) 0%, hsl(170 78% 45%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(43 96% 56%) 0%, hsl(36 98% 50%) 100%);
+    --gradient-hero: linear-gradient(180deg, hsl(220 20% 4%) 0%, hsl(220 24% 8%) 50%, hsl(220 20% 4%) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(220 18% 8%) 0%, hsl(220 18% 6%) 100%);
+    --gradient-glass: linear-gradient(135deg, hsla(0 0% 100% / 0.04) 0%, hsla(0 0% 100% / 0.01) 100%);
+
+    --shadow-glow: 0 0 40px hsla(160 84% 39% / 0.15);
+    --shadow-card: 0 4px 24px -4px hsla(0 0% 0% / 0.4);
+    --shadow-elevated: 0 8px 40px -8px hsla(0 0% 0% / 0.5);
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background-color: hsl(var(--primary) / 0.3);
+    color: hsl(var(--foreground));
+  }
+}
+
+@layer components {
+  .glass-panel {
+    background: var(--gradient-glass);
+    backdrop-filter: blur(12px);
+    border: 1px solid hsl(var(--border));
+  }
+
+  .card-elevated {
+    background: var(--gradient-card);
+    border: 1px solid hsl(var(--border));
+    box-shadow: var(--shadow-card);
+  }
+
+  .glow-primary {
+    box-shadow: var(--shadow-glow);
+  }
+
+  .text-gradient-primary {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-accent {
+    background: var(--gradient-accent);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .btn-primary {
+    background: var(--gradient-primary);
+    color: hsl(var(--primary-foreground));
+    font-weight: 600;
+    padding: 0.625rem 1.5rem;
+    border-radius: var(--radius);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .btn-primary:hover {
+    opacity: 0.9;
+    box-shadow: var(--shadow-glow);
+    transform: translateY(-1px);
+  }
+
+  .btn-secondary {
+    background-color: hsl(var(--secondary));
+    color: hsl(var(--secondary-foreground));
+    font-weight: 500;
+    padding: 0.625rem 1.5rem;
+    border-radius: var(--radius);
+    border: 1px solid hsl(var(--border));
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .btn-secondary:hover {
+    background-color: hsl(var(--muted));
+    border-color: hsl(var(--muted-foreground) / 0.3);
+  }
+
+  .btn-accent {
+    background: var(--gradient-accent);
+    color: hsl(var(--accent-foreground));
+    font-weight: 600;
+    padding: 0.625rem 1.5rem;
+    border-radius: var(--radius);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .btn-accent:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+  }
+
+  .input-field {
+    background-color: hsl(var(--input));
+    border: 1px solid hsl(var(--border));
+    color: hsl(var(--foreground));
+    border-radius: var(--radius);
+    padding: 0.625rem 0.875rem;
+    font-size: 0.875rem;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    width: 100%;
+  }
+
+  .input-field:focus {
+    outline: none;
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.15);
+  }
+
+  .input-field::placeholder {
+    color: hsl(var(--muted-foreground));
+  }
+
+  .badge-verified {
+    background-color: hsl(var(--success) / 0.15);
+    color: hsl(var(--success));
+    border: 1px solid hsl(var(--success) / 0.3);
+  }
+
+  .badge-review {
+    background-color: hsl(var(--warning) / 0.15);
+    color: hsl(var(--warning));
+    border: 1px solid hsl(var(--warning) / 0.3);
+  }
+
+  .badge-blocked {
+    background-color: hsl(var(--destructive) / 0.15);
+    color: hsl(var(--destructive));
+    border: 1px solid hsl(var(--destructive) / 0.3);
+  }
+
+  .badge-info {
+    background-color: hsl(var(--info) / 0.15);
+    color: hsl(var(--info));
+    border: 1px solid hsl(var(--info) / 0.3);
+  }
+
+  /* Solana wallet button override */
+  .wallet-adapter-button {
+    background: var(--gradient-primary) !important;
+    color: hsl(var(--primary-foreground)) !important;
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 600 !important;
+    font-size: 0.875rem !important;
+    border-radius: var(--radius) !important;
+    height: 40px !important;
+    padding: 0 1.25rem !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  }
+
+  .wallet-adapter-button:hover {
+    opacity: 0.9 !important;
+    box-shadow: var(--shadow-glow) !important;
+  }
+
+  .wallet-adapter-button-trigger {
+    background: var(--gradient-primary) !important;
+  }
+
+  .wallet-adapter-modal-wrapper {
+    background-color: hsl(var(--card)) !important;
+    border: 1px solid hsl(var(--border)) !important;
+    border-radius: calc(var(--radius) * 2) !important;
+    font-family: 'Inter', sans-serif !important;
+  }
+
+  .wallet-adapter-modal-title {
+    color: hsl(var(--foreground)) !important;
+    font-family: 'Inter', sans-serif !important;
+  }
+
+  .wallet-adapter-modal-list li {
+    background-color: hsl(var(--secondary)) !important;
+    border-radius: var(--radius) !important;
+  }
+
+  .wallet-adapter-modal-list li:hover {
+    background-color: hsl(var(--muted)) !important;
+  }
+
+  .stat-card {
+    background: var(--gradient-card);
+    border: 1px solid hsl(var(--border));
+    border-radius: calc(var(--radius) * 1.5);
+    padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--gradient-primary);
+    opacity: 0.6;
+  }
+}
+
+@layer utilities {
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.5s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.3s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  .grid-pattern {
+    background-image: 
+      linear-gradient(hsl(var(--border) / 0.3) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.3) 1px, transparent 1px);
+    background-size: 60px 60px;
+  }
+}
+
+import './index.css';
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+
+import App from './App.tsx';
+
+const rootElement = document.getElementById('root');
+if (!rootElement) throw new Error('Failed to find the root element');
+
+createRoot(rootElement).render(
+    <BrowserRouter>
+        <App />
+    </BrowserRouter>,
+);
