@@ -1,0 +1,1711 @@
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import Layout from '@/components/Layout';
+import { useAppStore, generateId } from '@/lib/store';
+import StatusBadge from '@/components/StatusBadge';
+import { useToast } from '@/hooks/use-toast';
+import {
+  DollarSign, Coins, AlertTriangle, RotateCcw,
+  Plus, Flame, TrendingUp, MessageSquare, Loader2,
+  Building2, ArrowRight,
+} from 'lucide-react';
+
+export default function BusinessDashboard() {
+  const { state, dispatch } = useAppStore();
+  const { toast } = useToast();
+  const user = state.currentUser;
+
+  const [issueAmount, setIssueAmount] = useState('');
+  const [burnAmount, setBurnAmount] = useState('');
+  const [issuingProject, setIssuingProject] = useState('');
+  const [burningProject, setBurningProject] = useState('');
+  const [loading, setLoading] = useState<string | null>(null);
+
+  if (!user || (user.role !== 'BUSINESS' && user.role !== 'INDIVIDUAL')) {
+    return (
+      <Layout>
+        <div className="container mx-auto px-4 py-20 text-center">
+          <p className="text-muted-foreground">You must be logged in as a business user.</p>
+          <Link to="/login" className="text-primary text-sm hover:underline mt-4 inline-block">Sign in</Link>
+        </div>
+      </Layout>
+    );
+  }
+
+  const userProjects = state.projects.filter(p => p.userId === user.id);
+  const totalCapital = userProjects.reduce((sum, p) => sum + (p.totalSupply - p.availableSupply) * p.priceUsd, 0);
+  const totalAvailable = userProjects.reduce((sum, p) => sum + p.availableSupply, 0);
+  const projectComplaints = state.complaints.filter(c => userProjects.some(p => p.id === c.projectId));
+  const projectBuybacks = state.buybackRequests.filter(b => userProjects.some(p => p.id === b.projectId));
+
+  async function handleIssue(e: React.FormEvent) {
+    e.preventDefault();
+    if (!issuingProject || !issueAmount) return;
+    setLoading('issue');
+    await new Promise(r => setTimeout(r, 1000));
+    dispatch({ type: 'ISSUE_TOKENS', payload: { projectId: issuingProject, amount: Number(issueAmount) } });
+    toast({ title: 'Tokens issued', description: `${Number(issueAmount).toLocaleString()} tokens minted successfully.` });
+    setIssueAmount('');
+    setLoading(null);
+  }
+
+  async function handleBurn(e: React.FormEvent) {
+    e.preventDefault();
+    if (!burningProject || !burnAmount) return;
+    const proj = state.projects.find(p => p.id === burningProject);
+    if (proj && Number(burnAmount) > proj.availableSupply) {
+      toast({ title: 'Error', description: 'Cannot burn more than available (unsold) supply.', variant: 'destructive' });
+      return;
+    }
+    setLoading('burn');
+    await new Promise(r => setTimeout(r, 1000));
+    dispatch({ type: 'BURN_TOKENS', payload: { projectId: burningProject, amount: Number(burnAmount) } });
+    toast({ title: 'Tokens burned', description: `${Number(burnAmount).toLocaleString()} unsold tokens burned.` });
+    setBurnAmount('');
+    setLoading(null);
+  }
+
+  return (
+    <Layout>
+      <div className="container mx-auto px-4 py-8 lg:py-12">
+        <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <h1 className="text-2xl font-bold text-foreground">Business Dashboard</h1>
+              <StatusBadge status={user.verificationStatus} size="md" />
+            </div>
+            <p className="text-sm text-muted-foreground">{user.legalEntityName || `${user.firstName} ${user.lastName}`}</p>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="stat-card">
+            <DollarSign className="h-5 w-5 text-primary mb-2" />
+            <p className="text-2xl font-bold text-foreground font-mono">${totalCapital.toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground">Capital Raised</p>
+          </div>
+          <div className="stat-card">
+            <Coins className="h-5 w-5 text-accent mb-2" />
+            <p className="text-2xl font-bold text-foreground font-mono">{totalAvailable.toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground">Tokens Available</p>
+          </div>
+          <div className="stat-card">
+            <RotateCcw className="h-5 w-5 text-info mb-2" />
+            <p className="text-2xl font-bold text-foreground font-mono">{projectBuybacks.length}</p>
+            <p className="text-xs text-muted-foreground">Buyback Requests</p>
+          </div>
+          <div className="stat-card">
+            <AlertTriangle className="h-5 w-5 text-destructive mb-2" />
+            <p className="text-2xl font-bold text-foreground font-mono">{projectComplaints.filter(c => c.status === 'OPEN').length}</p>
+            <p className="text-xs text-muted-foreground">Open Complaints</p>
+          </div>
+        </div>
+
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* Issue Tokens */}
+          <div className="card-elevated rounded-2xl p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Plus className="h-5 w-5 text-primary" />
+              <h2 className="text-base font-semibold text-foreground">Issue Additional Tokens</h2>
+            </div>
+            <form onSubmit={handleIssue} className="space-y-3">
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">Project</label>
+                <select
+                  value={issuingProject}
+                  onChange={e => setIssuingProject(e.target.value)}
+                  className="input-field"
+                  required
+                >
+                  <option value="">Select project</option>
+                  {userProjects.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.tokenSymbol})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">Amount to Mint</label>
+                <input
+                  type="number"
+                  value={issueAmount}
+                  onChange={e => setIssueAmount(e.target.value)}
+                  placeholder="10000"
+                  className="input-field"
+                  min="1"
+                  required
+                />
+              </div>
+              <button type="submit" disabled={loading === 'issue'} className="btn-primary w-full flex items-center justify-center gap-2 text-sm disabled:opacity-50">
+                {loading === 'issue' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                {loading === 'issue' ? 'Minting...' : 'Issue Tokens'}
+              </button>
+            </form>
+          </div>
+
+          {/* Burn Tokens */}
+          <div className="card-elevated rounded-2xl p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Flame className="h-5 w-5 text-destructive" />
+              <h2 className="text-base font-semibold text-foreground">Burn Unsold Tokens</h2>
+            </div>
+            <form onSubmit={handleBurn} className="space-y-3">
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">Project</label>
+                <select
+                  value={burningProject}
+                  onChange={e => setBurningProject(e.target.value)}
+                  className="input-field"
+                  required
+                >
+                  <option value="">Select project</option>
+                  {userProjects.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.tokenSymbol}) - {p.availableSupply.toLocaleString()} available</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">Amount to Burn</label>
+                <input
+                  type="number"
+                  value={burnAmount}
+                  onChange={e => setBurnAmount(e.target.value)}
+                  placeholder="5000"
+                  className="input-field"
+                  min="1"
+                  required
+                />
+              </div>
+              <button type="submit" disabled={loading === 'burn'} className="w-full flex items-center justify-center gap-2 text-sm py-2.5 px-4 rounded-lg font-semibold bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-50">
+                {loading === 'burn' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Flame className="h-4 w-4" />}
+                {loading === 'burn' ? 'Burning...' : 'Burn Tokens'}
+              </button>
+            </form>
+          </div>
+
+          {/* Buyback Requests */}
+          <div className="card-elevated rounded-2xl p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <RotateCcw className="h-5 w-5 text-info" />
+              <h2 className="text-base font-semibold text-foreground">Buyback Requests</h2>
+            </div>
+            {projectBuybacks.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No buyback requests yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {projectBuybacks.map(bb => {
+                  const proj = state.projects.find(p => p.id === bb.projectId);
+                  return (
+                    <div key={bb.id} className="p-3 rounded-xl bg-secondary">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-sm font-medium text-foreground">{bb.buyerName}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          bb.status === 'PENDING' ? 'badge-review' : bb.status === 'ACCEPTED' ? 'badge-verified' : 'badge-blocked'
+                        }`}>
+                          {bb.status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {bb.tokenAmount.toLocaleString()} {proj?.tokenSymbol} tokens
+                      </p>
+                      {bb.status === 'PENDING' && (
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={() => dispatch({ type: 'UPDATE_BUYBACK', payload: { id: bb.id, status: 'ACCEPTED' } })}
+                            className="text-xs px-3 py-1.5 rounded-lg bg-primary/10 text-primary font-medium hover:bg-primary/20 transition-colors"
+                          >
+                            Accept
+                          </button>
+                          <button
+                            onClick={() => dispatch({ type: 'UPDATE_BUYBACK', payload: { id: bb.id, status: 'REJECTED' } })}
+                            className="text-xs px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive font-medium hover:bg-destructive/20 transition-colors"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Complaints */}
+          <div className="card-elevated rounded-2xl p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <MessageSquare className="h-5 w-5 text-warning" />
+              <h2 className="text-base font-semibold text-foreground">Complaints</h2>
+            </div>
+            {projectComplaints.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No complaints filed.</p>
+            ) : (
+              <div className="space-y-3">
+                {projectComplaints.map(c => (
+                  <div key={c.id} className="p-3 rounded-xl bg-secondary">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-sm font-medium text-foreground">{c.submitterName}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        c.status === 'OPEN' ? 'badge-review' : 'badge-verified'
+                      }`}>
+                        {c.status}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-1">{c.submitterEmail}</p>
+                    <p className="text-sm text-foreground leading-relaxed">{c.text}</p>
+                    {c.status === 'OPEN' && (
+                      <button
+                        onClick={() => {
+                          dispatch({ type: 'UPDATE_COMPLAINT', payload: { id: c.id, status: 'RESOLVED' } });
+                          toast({ title: 'Complaint resolved' });
+                        }}
+                        className="text-xs px-3 py-1.5 mt-2 rounded-lg bg-primary/10 text-primary font-medium hover:bg-primary/20 transition-colors"
+                      >
+                        Mark Resolved
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Projects */}
+        {userProjects.length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-lg font-semibold text-foreground mb-4">Your Projects</h2>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {userProjects.map(p => (
+                <Link key={p.id} to={`/listings/${p.id}`} className="card-elevated rounded-2xl p-5 hover:border-primary/30 transition-all group">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary font-bold font-mono">
+                      {p.tokenSymbol.charAt(0)}
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">{p.name}</h3>
+                      <span className="text-xs text-muted-foreground font-mono">${p.tokenSymbol}</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="text-center p-2 rounded-lg bg-secondary">
+                      <p className="text-xs text-muted-foreground">Price</p>
+                      <p className="text-sm font-bold text-foreground font-mono">${p.priceUsd.toFixed(2)}</p>
+                    </div>
+                    <div className="text-center p-2 rounded-lg bg-secondary">
+                      <p className="text-xs text-muted-foreground">Available</p>
+                      <p className="text-sm font-bold text-foreground font-mono">{(p.availableSupply / 1000).toFixed(0)}K</p>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </Layout>
+  );
+}
+
+import React from 'react';
+import { Link } from 'react-router-dom';
+import Layout from '@/components/Layout';
+import { useAppStore } from '@/lib/store';
+import TokenCard from '@/components/TokenCard';
+import {
+  Shield, Building2, Users, Coins,
+  ArrowRight, Lock, Globe, BarChart3, Zap,
+} from 'lucide-react';
+import { motion } from 'framer-motion';
+import logoImg from '@/assets/logo.png';
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 20 },
+  visible: (i: number) => ({ opacity: 1, y: 0, transition: { delay: i * 0.1, duration: 0.5 } }),
+};
+
+export default function IndexPage() {
+  const { state } = useAppStore();
+  const featuredProjects = state.projects.slice(0, 3);
+
+  const stats = [
+    { label: 'Total Projects', value: state.projects.length.toString(), icon: Building2 },
+    { label: 'Registered Users', value: state.users.length.toString(), icon: Users },
+    { label: 'Tokens Listed', value: state.projects.reduce((a, p) => a + p.totalSupply, 0).toLocaleString(), icon: Coins },
+    { label: 'Verified Issuers', value: state.users.filter(u => u.verificationStatus === 'verified' && u.role === 'BUSINESS').length.toString(), icon: Shield },
+  ];
+
+  const features = [
+    { icon: Lock, title: 'Compliant by Design', desc: 'KYC/AML verification for all issuers. Transfer restrictions until verification is confirmed.' },
+    { icon: Globe, title: 'Global Access', desc: 'Tokenize real-world assets and reach investors worldwide through blockchain infrastructure.' },
+    { icon: BarChart3, title: 'Full Transparency', desc: 'On-chain transactions, real-time supply tracking, and auditable smart contracts.' },
+    { icon: Zap, title: 'Instant Settlement', desc: 'Leveraging Solana for sub-second finality and near-zero transaction costs.' },
+  ];
+
+  return (
+    <Layout>
+      {/* Hero */}
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0 grid-pattern opacity-30" />
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-primary/5 rounded-full blur-3xl" />
+
+        <div className="container relative mx-auto px-4 pt-16 pb-24 lg:pt-24 lg:pb-32">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6 }}
+            className="flex justify-center mb-8"
+          >
+            <img src={logoImg} alt="TokenBiz" className="h-24 w-24 sm:h-28 sm:w-28 object-contain animate-float" />
+          </motion.div>
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            className="max-w-3xl mx-auto text-center"
+          >
+            <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-primary/20 bg-primary/5 text-primary text-sm font-medium mb-6">
+              <Zap className="h-3.5 w-3.5" />
+              Built on Solana
+            </motion.div>
+
+            <motion.h1 variants={fadeUp} custom={1} className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-foreground leading-[1.1] mb-5">
+              Tokenize Real-World
+              <br />
+              <span className="text-gradient-primary">Assets with Confidence</span>
+            </motion.h1>
+
+            <motion.p variants={fadeUp} custom={2} className="text-lg text-muted-foreground leading-relaxed max-w-2xl mx-auto mb-8">
+              The institutional-grade platform for security token issuance. List your business, tokenize assets, 
+              and connect with verified investors — all with built-in compliance.
+            </motion.p>
+
+            <motion.div variants={fadeUp} custom={3} className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Link to="/register" className="btn-primary text-base px-7 py-3 flex items-center gap-2">
+                Start Tokenizing
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link to="/listings" className="btn-secondary text-base px-7 py-3">
+                Browse Tokens
+              </Link>
+            </motion.div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Stats */}
+      <section className="container mx-auto px-4 -mt-4 mb-16">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {stats.map((s, i) => (
+            <motion.div
+              key={s.label}
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.08 }}
+              className="stat-card"
+            >
+              <s.icon className="h-5 w-5 text-primary mb-2" />
+              <p className="text-2xl font-bold text-foreground font-mono">{s.value}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="container mx-auto px-4 mb-20">
+        <div className="text-center mb-10">
+          <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-3">Why TokenBiz</h2>
+          <p className="text-muted-foreground max-w-xl mx-auto">
+            Purpose-built infrastructure for compliant tokenization of real-world assets.
+          </p>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {features.map((f, i) => (
+            <motion.div
+              key={f.title}
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.08 }}
+              className="card-elevated rounded-2xl p-5 hover:border-primary/20 transition-all"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 mb-3">
+                <f.icon className="h-5 w-5 text-primary" />
+              </div>
+              <h3 className="text-sm font-semibold text-foreground mb-1.5">{f.title}</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">{f.desc}</p>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* Featured Tokens */}
+      <section className="container mx-auto px-4 mb-20">
+        <div className="flex items-end justify-between mb-6">
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Featured Tokens</h2>
+            <p className="text-muted-foreground text-sm">Explore tokenized real-world asset opportunities</p>
+          </div>
+          <Link to="/listings" className="text-primary text-sm font-medium flex items-center gap-1 hover:underline">
+            View all
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {featuredProjects.map(project => (
+            <TokenCard key={project.id} project={project} />
+          ))}
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="container mx-auto px-4 mb-20">
+        <div className="card-elevated rounded-2xl p-8 sm:p-12 text-center relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-accent to-primary" />
+          <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-3">Ready to Tokenize Your Assets?</h2>
+          <p className="text-muted-foreground max-w-lg mx-auto mb-6">
+            Whether you are an established business or an aspiring entrepreneur, TokenBiz provides the infrastructure to bring your assets on-chain.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link to="/register" className="btn-primary text-sm px-6 py-3 flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              Register as Business
+            </Link>
+            <Link to="/register" className="btn-accent text-sm px-6 py-3 flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Register as Investor
+            </Link>
+          </div>
+        </div>
+      </section>
+    </Layout>
+  );
+}
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import Layout from '@/components/Layout';
+import { useAppStore, generateId } from '@/lib/store';
+import StatusBadge from '@/components/StatusBadge';
+import BuyModal from '@/components/BuyModal';
+import { useToast } from '@/hooks/use-toast';
+import {
+  Wallet, TrendingUp, PieChart, ShoppingCart,
+  ArrowDownUp, Building2, ExternalLink,
+} from 'lucide-react';
+
+export default function InvestorDashboard() {
+  const { state, dispatch } = useAppStore();
+  const { toast } = useToast();
+  const user = state.currentUser;
+  const [buyingProject, setBuyingProject] = useState<string | null>(null);
+
+  if (!user || (user.role !== 'BUYER' && user.role !== 'INDIVIDUAL')) {
+    return (
+      <Layout>
+        <div className="container mx-auto px-4 py-20 text-center">
+          <p className="text-muted-foreground">You must be logged in as an investor.</p>
+          <Link to="/login" className="text-primary text-sm hover:underline mt-4 inline-block">Sign in</Link>
+        </div>
+      </Layout>
+    );
+  }
+
+  const portfolio = state.portfolio;
+  const totalValue = portfolio.reduce((sum, p) => sum + p.totalValue, 0);
+  const totalTokens = portfolio.reduce((sum, p) => sum + p.amount, 0);
+
+  function handleSellRequest(projectId: string, projectName: string, tokenSymbol: string, amount: number) {
+    dispatch({
+      type: 'ADD_BUYBACK',
+      payload: {
+        id: generateId(),
+        buyerId: user!.id,
+        buyerName: `${user!.firstName} ${user!.lastName}`,
+        projectId,
+        tokenAmount: Math.floor(amount * 0.5),
+        status: 'PENDING',
+        createdAt: new Date().toISOString(),
+      },
+    });
+    toast({
+      title: 'Sell request submitted',
+      description: `Buyback request for ${Math.floor(amount * 0.5)} ${tokenSymbol} sent to issuer.`,
+    });
+  }
+
+  const projectForBuy = buyingProject ? state.projects.find(p => p.id === buyingProject) : null;
+
+  return (
+    <Layout>
+      <div className="container mx-auto px-4 py-8 lg:py-12">
+        <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <h1 className="text-2xl font-bold text-foreground">Investor Portfolio</h1>
+              <StatusBadge status={user.verificationStatus} size="md" />
+            </div>
+            <p className="text-sm text-muted-foreground">{user.firstName} {user.lastName}</p>
+          </div>
+          <Link to="/listings" className="btn-primary text-sm flex items-center gap-2">
+            <ShoppingCart className="h-4 w-4" />
+            Browse Tokens
+          </Link>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+          <div className="stat-card">
+            <Wallet className="h-5 w-5 text-primary mb-2" />
+            <p className="text-2xl font-bold text-foreground font-mono">${totalValue.toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground">Total Portfolio Value</p>
+          </div>
+          <div className="stat-card">
+            <PieChart className="h-5 w-5 text-accent mb-2" />
+            <p className="text-2xl font-bold text-foreground font-mono">{portfolio.length}</p>
+            <p className="text-xs text-muted-foreground">Projects Held</p>
+          </div>
+          <div className="stat-card">
+            <TrendingUp className="h-5 w-5 text-info mb-2" />
+            <p className="text-2xl font-bold text-foreground font-mono">{totalTokens.toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground">Total Tokens</p>
+          </div>
+        </div>
+
+        {/* Portfolio */}
+        <h2 className="text-lg font-semibold text-foreground mb-4">Your Holdings</h2>
+
+        {portfolio.length === 0 ? (
+          <div className="card-elevated rounded-2xl p-10 text-center">
+            <Wallet className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground mb-3">No tokens in your portfolio yet.</p>
+            <Link to="/listings" className="btn-primary text-sm inline-flex items-center gap-2">
+              <ShoppingCart className="h-4 w-4" />
+              Browse Tokens
+            </Link>
+          </div>
+        ) : (
+          <div className="grid gap-4">
+            {portfolio.map(item => (
+              <div key={item.projectId} className="card-elevated rounded-2xl p-5">
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary font-bold text-xl font-mono shrink-0">
+                      {item.tokenSymbol.charAt(0)}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-base font-semibold text-foreground">{item.projectName}</h3>
+                        <StatusBadge status={item.issuerVerified} />
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs text-muted-foreground font-mono">${item.tokenSymbol}</span>
+                        <span className="text-muted-foreground/40">|</span>
+                        <span className="text-xs text-muted-foreground line-clamp-1">{item.description}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <p className="text-lg font-bold text-foreground font-mono">${item.totalValue.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {item.amount.toLocaleString()} tokens @ ${item.currentPrice.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border">
+                  <button
+                    onClick={() => setBuyingProject(item.projectId)}
+                    className="btn-primary text-xs py-2 px-4 flex items-center gap-1.5"
+                  >
+                    <ShoppingCart className="h-3.5 w-3.5" />
+                    Buy More
+                  </button>
+                  <button
+                    onClick={() => handleSellRequest(item.projectId, item.projectName, item.tokenSymbol, item.amount)}
+                    className="btn-secondary text-xs py-2 px-4 flex items-center gap-1.5"
+                  >
+                    <ArrowDownUp className="h-3.5 w-3.5" />
+                    Sell / Buyback
+                  </button>
+                  <Link
+                    to={`/listings/${item.projectId}`}
+                    className="ml-auto text-xs text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors"
+                  >
+                    View Project
+                    <ExternalLink className="h-3 w-3" />
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Recent Transactions */}
+        {state.transactions.filter(t => t.buyerId === user.id).length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-lg font-semibold text-foreground mb-4">Recent Transactions</h2>
+            <div className="card-elevated rounded-2xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">Type</th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">Project</th>
+                      <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground">Amount</th>
+                      <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground">Price</th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">Tx Hash</th>
+                      <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {state.transactions
+                      .filter(t => t.buyerId === user.id)
+                      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                      .map(tx => {
+                        const proj = state.projects.find(p => p.id === tx.projectId);
+                        return (
+                          <tr key={tx.id} className="border-b border-border last:border-0">
+                            <td className="px-4 py-3">
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                tx.type === 'BUY' ? 'badge-verified' : tx.type === 'SELL' ? 'badge-blocked' : 'badge-info'
+                              }`}>
+                                {tx.type}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-foreground font-medium">{proj?.name || 'Unknown'}</td>
+                            <td className="px-4 py-3 text-right font-mono text-foreground">{tx.amount.toLocaleString()}</td>
+                            <td className="px-4 py-3 text-right font-mono text-foreground">${tx.priceAtPurchase.toFixed(2)}</td>
+                            <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{tx.txHash}</td>
+                            <td className="px-4 py-3 text-right text-muted-foreground text-xs">
+                              {new Date(tx.createdAt).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {projectForBuy && <BuyModal project={projectForBuy} onClose={() => setBuyingProject(null)} />}
+    </Layout>
+  );
+}
+
+import React, { useState } from 'react';
+import Layout from '@/components/Layout';
+import { useAppStore } from '@/lib/store';
+import TokenCard from '@/components/TokenCard';
+import { Search, SlidersHorizontal } from 'lucide-react';
+
+export default function ListingsPage() {
+  const { state } = useAppStore();
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<'all' | 'verified' | 'under_review'>('all');
+
+  const filtered = state.projects.filter(p => {
+    const matchesSearch =
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.tokenSymbol.toLowerCase().includes(search.toLowerCase()) ||
+      p.description.toLowerCase().includes(search.toLowerCase());
+    const matchesFilter =
+      filter === 'all' || p.issuerVerified === filter;
+    return matchesSearch && matchesFilter;
+  });
+
+  return (
+    <Layout>
+      <div className="container mx-auto px-4 py-10 lg:py-14">
+        <div className="max-w-3xl mb-8">
+          <h1 className="text-3xl font-bold text-foreground mb-2">Token Listings</h1>
+          <p className="text-muted-foreground">
+            Browse tokenized real-world asset opportunities from verified issuers.
+          </p>
+        </div>
+
+        {/* Search & Filter */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-8">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by name, symbol, or description..."
+              className="input-field pl-10"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4 text-muted-foreground shrink-0" />
+            {(['all', 'verified', 'under_review'] as const).map(f => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  filter === f
+                    ? 'bg-primary/10 text-primary border border-primary/20'
+                    : 'bg-secondary text-muted-foreground hover:text-foreground border border-transparent'
+                }`}
+              >
+                {f === 'all' ? 'All' : f === 'verified' ? 'Verified' : 'Under Review'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Grid */}
+        {filtered.length > 0 ? (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filtered.map(project => (
+              <TokenCard key={project.id} project={project} />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-20">
+            <p className="text-muted-foreground">No tokens found matching your criteria.</p>
+          </div>
+        )}
+      </div>
+    </Layout>
+  );
+}
+
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import Layout from '@/components/Layout';
+import { useAppStore } from '@/lib/store';
+import { useToast } from '@/hooks/use-toast';
+import { LogIn, ArrowRight } from 'lucide-react';
+import logoImg from '@/assets/logo.png';
+
+export default function LoginPage() {
+  const { state, dispatch } = useAppStore();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+
+  function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    const user = state.users.find(u => u.email === email);
+    if (!user) {
+      toast({ title: 'User not found', description: 'No account found with that email. Try one of the demo accounts.', variant: 'destructive' });
+      return;
+    }
+    dispatch({ type: 'LOGIN', payload: user });
+    toast({ title: `Welcome back, ${user.firstName}!`, description: `Signed in as ${user.role.toLowerCase()}.` });
+
+    if (user.role === 'ADMIN') navigate('/admin');
+    else if (user.role === 'BUSINESS') navigate('/dashboard/business');
+    else navigate('/dashboard/investor');
+  }
+
+  const demoAccounts = [
+    { email: 'admin@tokenbiz.io', label: 'Admin', role: 'ADMIN' },
+    { email: 'john@greenenergy.com', label: 'Business (Verified)', role: 'BUSINESS' },
+    { email: 'sarah@realtoken.io', label: 'Business (Under Review)', role: 'BUSINESS' },
+    { email: 'alice@investor.com', label: 'Token Buyer', role: 'BUYER' },
+    { email: 'mike@example.com', label: 'Individual', role: 'INDIVIDUAL' },
+  ];
+
+  return (
+    <Layout>
+      <div className="container mx-auto px-4 py-16 flex items-center justify-center min-h-[calc(100vh-12rem)]">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <div className="flex justify-center mb-4">
+              <img src={logoImg} alt="TokenBiz" className="h-14 w-14 object-contain" />
+            </div>
+            <h1 className="text-2xl font-bold text-foreground mb-1">Welcome back</h1>
+            <p className="text-sm text-muted-foreground">Sign in to your TokenBiz account</p>
+          </div>
+
+          <div className="card-elevated rounded-2xl p-6">
+            <form onSubmit={handleLogin} className="mb-6">
+              <label className="text-sm font-medium text-foreground mb-1.5 block">Email address</label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="input-field mb-4"
+                required
+              />
+              <button type="submit" className="btn-primary w-full flex items-center justify-center gap-2 text-sm">
+                <LogIn className="h-4 w-4" />
+                Sign In
+              </button>
+            </form>
+
+            <div className="border-t border-border pt-4">
+              <p className="text-xs text-muted-foreground mb-3 text-center">Quick login with demo accounts</p>
+              <div className="flex flex-col gap-1.5">
+                {demoAccounts.map(acc => (
+                  <button
+                    key={acc.email}
+                    onClick={() => {
+                      setEmail(acc.email);
+                      const user = state.users.find(u => u.email === acc.email);
+                      if (user) {
+                        dispatch({ type: 'LOGIN', payload: user });
+                        toast({ title: `Signed in as ${user.firstName}`, description: `Role: ${acc.role}` });
+                        if (user.role === 'ADMIN') navigate('/admin');
+                        else if (user.role === 'BUSINESS') navigate('/dashboard/business');
+                        else navigate('/dashboard/investor');
+                      }
+                    }}
+                    className="flex items-center justify-between px-3 py-2 rounded-lg bg-secondary text-sm hover:bg-muted transition-colors"
+                  >
+                    <div className="text-left">
+                      <span className="text-foreground font-medium">{acc.label}</span>
+                      <span className="text-muted-foreground ml-2 text-xs">{acc.email}</span>
+                    </div>
+                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <p className="text-center text-sm text-muted-foreground mt-6">
+            Don&apos;t have an account?{' '}
+            <Link to="/register" className="text-primary font-medium hover:underline">Register</Link>
+          </p>
+        </div>
+      </div>
+    </Layout>
+  );
+}
+import React from 'react';
+import { Link } from 'react-router-dom';
+import Layout from '@/components/Layout';
+import { ArrowLeft } from 'lucide-react';
+import logoImg from '@/assets/logo.png';
+
+export default function NotFound() {
+  return (
+    <Layout>
+      <div className="container mx-auto px-4 py-20 flex items-center justify-center min-h-[calc(100vh-12rem)]">
+        <div className="text-center">
+          <div className="flex justify-center mb-5">
+            <img src={logoImg} alt="TokenBiz" className="h-16 w-16 object-contain" />
+          </div>
+          <h1 className="text-5xl font-bold text-foreground mb-2 font-mono">404</h1>
+          <p className="text-muted-foreground mb-6">Page not found.</p>
+          <Link to="/" className="btn-primary text-sm inline-flex items-center gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            Back to Home
+          </Link>
+        </div>
+      </div>
+    </Layout>
+  );
+}
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import Layout from '@/components/Layout';
+import { useAppStore, generateId } from '@/lib/store';
+import { useToast } from '@/hooks/use-toast';
+import type { UserRole } from '@/lib/types';
+import { Building2, User, ShoppingCart, ArrowRight, Check } from 'lucide-react';
+
+type Tab = 'BUSINESS' | 'INDIVIDUAL' | 'BUYER';
+
+const tabs: { key: Tab; label: string; icon: React.ElementType; desc: string }[] = [
+  { key: 'BUSINESS', label: 'Business', icon: Building2, desc: 'Existing legal entity' },
+  { key: 'INDIVIDUAL', label: 'Individual', icon: User, desc: 'Want to incorporate' },
+  { key: 'BUYER', label: 'Token Buyer', icon: ShoppingCart, desc: 'Retail investor' },
+];
+
+export default function RegisterPage() {
+  const { dispatch } = useAppStore();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<Tab>('BUSINESS');
+
+  // Business fields
+  const [bFirstName, setBFirstName] = useState('');
+  const [bLastName, setBLastName] = useState('');
+  const [bPosition, setBPosition] = useState('');
+  const [bEntity, setBEntity] = useState('');
+  const [bCountry, setBCountry] = useState('');
+  const [bEmail, setBEmail] = useState('');
+  const [bPhone, setBPhone] = useState('');
+  const [bProjectName, setBProjectName] = useState('');
+  const [bProjectDesc, setBProjectDesc] = useState('');
+
+  // Individual fields
+  const [iFirstName, setIFirstName] = useState('');
+  const [iLastName, setILastName] = useState('');
+  const [iCitizenship, setICitizenship] = useState('');
+  const [iEmail, setIEmail] = useState('');
+  const [iPhone, setIPhone] = useState('');
+  const [iProjectDesc, setIProjectDesc] = useState('');
+
+  // Buyer fields
+  const [buyFirstName, setBuyFirstName] = useState('');
+  const [buyLastName, setBuyLastName] = useState('');
+  const [buyCitizenship, setBuyCitizenship] = useState('');
+  const [buyEmail, setBuyEmail] = useState('');
+  const [buyPhone, setBuyPhone] = useState('');
+
+  function submitBusiness(e: React.FormEvent) {
+    e.preventDefault();
+    const user = {
+      id: generateId(),
+      email: bEmail,
+      role: 'BUSINESS' as UserRole,
+      verificationStatus: 'under_review' as const,
+      firstName: bFirstName,
+      lastName: bLastName,
+      phone: bPhone,
+      representativePosition: bPosition,
+      legalEntityName: bEntity,
+      countryOfIncorporation: bCountry,
+      projectName: bProjectName,
+      projectDescription: bProjectDesc,
+      createdAt: new Date().toISOString(),
+    };
+    dispatch({ type: 'REGISTER_USER', payload: user });
+    toast({ title: 'Registration submitted', description: 'Your business application is under review. Our team will contact you shortly.' });
+    navigate('/dashboard/business');
+  }
+
+  function submitIndividual(e: React.FormEvent) {
+    e.preventDefault();
+    const user = {
+      id: generateId(),
+      email: iEmail,
+      role: 'INDIVIDUAL' as UserRole,
+      verificationStatus: 'under_review' as const,
+      firstName: iFirstName,
+      lastName: iLastName,
+      phone: iPhone,
+      citizenship: iCitizenship,
+      projectDescription: iProjectDesc,
+      createdAt: new Date().toISOString(),
+    };
+    dispatch({ type: 'REGISTER_USER', payload: user });
+    toast({ title: 'Registration submitted', description: 'Your application is under review.' });
+    navigate('/dashboard/investor');
+  }
+
+  function submitBuyer(e: React.FormEvent) {
+    e.preventDefault();
+    const user = {
+      id: generateId(),
+      email: buyEmail,
+      role: 'BUYER' as UserRole,
+      verificationStatus: 'verified' as const,
+      firstName: buyFirstName,
+      lastName: buyLastName,
+      phone: buyPhone,
+      citizenship: buyCitizenship,
+      createdAt: new Date().toISOString(),
+    };
+    dispatch({ type: 'REGISTER_USER', payload: user });
+    toast({ title: 'Welcome to TokenBiz!', description: 'Your account is active. Start browsing tokens.' });
+    navigate('/listings');
+  }
+
+  const inputClass = 'input-field';
+  const labelClass = 'text-sm font-medium text-foreground mb-1.5 block';
+
+  return (
+    <Layout>
+      <div className="container mx-auto px-4 py-12 lg:py-16">
+        <div className="max-w-2xl mx-auto">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-foreground mb-2">Create Account</h1>
+            <p className="text-muted-foreground">Select your account type and fill in your details</p>
+          </div>
+
+          {/* Tabs */}
+          <div className="grid grid-cols-3 gap-2 mb-8">
+            {tabs.map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`relative flex flex-col items-center gap-1.5 px-3 py-4 rounded-xl border text-center transition-all ${
+                  activeTab === tab.key
+                    ? 'border-primary bg-primary/5 text-primary'
+                    : 'border-border bg-card text-muted-foreground hover:border-muted-foreground/30'
+                }`}
+              >
+                {activeTab === tab.key && (
+                  <div className="absolute top-2 right-2">
+                    <Check className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                )}
+                <tab.icon className="h-5 w-5" />
+                <span className="text-sm font-semibold">{tab.label}</span>
+                <span className="text-xs opacity-70">{tab.desc}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="card-elevated rounded-2xl p-6 sm:p-8">
+            {/* Business Form */}
+            {activeTab === 'BUSINESS' && (
+              <form onSubmit={submitBusiness} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className={labelClass}>First Name</label>
+                    <input value={bFirstName} onChange={e => setBFirstName(e.target.value)} className={inputClass} required />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Last Name</label>
+                    <input value={bLastName} onChange={e => setBLastName(e.target.value)} className={inputClass} required />
+                  </div>
+                </div>
+                <div>
+                  <label className={labelClass}>Representative Position</label>
+                  <input value={bPosition} onChange={e => setBPosition(e.target.value)} placeholder="CEO, CFO, Director..." className={inputClass} required />
+                </div>
+                <div>
+                  <label className={labelClass}>Legal Entity Name</label>
+                  <input value={bEntity} onChange={e => setBEntity(e.target.value)} placeholder="Company Pty Ltd" className={inputClass} required />
+                </div>
+                <div>
+                  <label className={labelClass}>Country of Incorporation</label>
+                  <input value={bCountry} onChange={e => setBCountry(e.target.value)} placeholder="United States" className={inputClass} required />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className={labelClass}>Contact Email</label>
+                    <input type="email" value={bEmail} onChange={e => setBEmail(e.target.value)} className={inputClass} required />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Contact Phone</label>
+                    <input type="tel" value={bPhone} onChange={e => setBPhone(e.target.value)} className={inputClass} required />
+                  </div>
+                </div>
+                <div>
+                  <label className={labelClass}>Project Name</label>
+                  <input value={bProjectName} onChange={e => setBProjectName(e.target.value)} placeholder="My Token Project" className={inputClass} required />
+                </div>
+                <div>
+                  <label className={labelClass}>Project Description</label>
+                  <textarea value={bProjectDesc} onChange={e => setBProjectDesc(e.target.value)} rows={3} placeholder="Describe your tokenization project..." className={`${inputClass} resize-none`} required />
+                </div>
+                <button type="submit" className="btn-primary w-full flex items-center justify-center gap-2 text-sm mt-2">
+                  Submit Application
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+                <p className="text-xs text-muted-foreground text-center">
+                  Your application will be reviewed by our compliance team.
+                </p>
+              </form>
+            )}
+
+            {/* Individual Form */}
+            {activeTab === 'INDIVIDUAL' && (
+              <form onSubmit={submitIndividual} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className={labelClass}>First Name</label>
+                    <input value={iFirstName} onChange={e => setIFirstName(e.target.value)} className={inputClass} required />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Last Name</label>
+                    <input value={iLastName} onChange={e => setILastName(e.target.value)} className={inputClass} required />
+                  </div>
+                </div>
+                <div>
+                  <label className={labelClass}>Citizenship</label>
+                  <input value={iCitizenship} onChange={e => setICitizenship(e.target.value)} placeholder="Country" className={inputClass} required />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className={labelClass}>Contact Email</label>
+                    <input type="email" value={iEmail} onChange={e => setIEmail(e.target.value)} className={inputClass} required />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Contact Phone</label>
+                    <input type="tel" value={iPhone} onChange={e => setIPhone(e.target.value)} className={inputClass} required />
+                  </div>
+                </div>
+                <div>
+                  <label className={labelClass}>Project Description</label>
+                  <textarea value={iProjectDesc} onChange={e => setIProjectDesc(e.target.value)} rows={3} placeholder="Describe the company you want to form and what you plan to tokenize..." className={`${inputClass} resize-none`} required />
+                </div>
+                <button type="submit" className="btn-primary w-full flex items-center justify-center gap-2 text-sm mt-2">
+                  Submit Application
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+                <p className="text-xs text-muted-foreground text-center">
+                  We will help you incorporate and set up your token project.
+                </p>
+              </form>
+            )}
+
+            {/* Buyer Form */}
+            {activeTab === 'BUYER' && (
+              <form onSubmit={submitBuyer} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className={labelClass}>First Name</label>
+                    <input value={buyFirstName} onChange={e => setBuyFirstName(e.target.value)} className={inputClass} required />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Last Name</label>
+                    <input value={buyLastName} onChange={e => setBuyLastName(e.target.value)} className={inputClass} required />
+                  </div>
+                </div>
+                <div>
+                  <label className={labelClass}>Citizenship</label>
+                  <input value={buyCitizenship} onChange={e => setBuyCitizenship(e.target.value)} placeholder="Country" className={inputClass} required />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className={labelClass}>Contact Email</label>
+                    <input type="email" value={buyEmail} onChange={e => setBuyEmail(e.target.value)} className={inputClass} required />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Contact Phone</label>
+                    <input type="tel" value={buyPhone} onChange={e => setBuyPhone(e.target.value)} className={inputClass} required />
+                  </div>
+                </div>
+                <button type="submit" className="btn-primary w-full flex items-center justify-center gap-2 text-sm mt-2">
+                  Create Account
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+                <p className="text-xs text-muted-foreground text-center">
+                  Immediate access to browse and purchase tokens.
+                </p>
+              </form>
+            )}
+          </div>
+
+          <p className="text-center text-sm text-muted-foreground mt-6">
+            Already have an account?{' '}
+            <Link to="/login" className="text-primary font-medium hover:underline">Sign in</Link>
+          </p>
+        </div>
+      </div>
+    </Layout>
+  );
+}
+import React, { useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import Layout from '@/components/Layout';
+import { useAppStore } from '@/lib/store';
+import StatusBadge from '@/components/StatusBadge';
+import BuyModal from '@/components/BuyModal';
+import ComplaintModal from '@/components/ComplaintModal';
+import { useToast } from '@/hooks/use-toast';
+import {
+  ArrowLeft, TrendingUp, Coins, BarChart3, ShoppingCart,
+  Gift, AlertTriangle, Copy, ExternalLink, Building2,
+} from 'lucide-react';
+
+export default function TokenDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const { state } = useAppStore();
+  const { toast } = useToast();
+  const [showBuy, setShowBuy] = useState(false);
+  const [showComplaint, setShowComplaint] = useState(false);
+
+  const project = state.projects.find(p => p.id === id);
+
+  if (!project) {
+    return (
+      <Layout>
+        <div className="container mx-auto px-4 py-20 text-center">
+          <p className="text-muted-foreground text-lg">Project not found.</p>
+          <Link to="/listings" className="text-primary text-sm hover:underline mt-4 inline-block">Back to listings</Link>
+        </div>
+      </Layout>
+    );
+  }
+
+  const soldPercent = ((project.totalSupply - project.availableSupply) / project.totalSupply) * 100;
+  const capitalRaised = (project.totalSupply - project.availableSupply) * project.priceUsd;
+
+  function copyAddress() {
+    navigator.clipboard.writeText(project.tokenAddress);
+    toast({ title: 'Copied', description: 'Token address copied to clipboard.' });
+  }
+
+  return (
+    <Layout>
+      <div className="container mx-auto px-4 py-8 lg:py-12">
+        <Link to="/listings" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors">
+          <ArrowLeft className="h-4 w-4" />
+          Back to listings
+        </Link>
+
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Main Content */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Header */}
+            <div className="card-elevated rounded-2xl p-6">
+              <div className="flex items-start gap-4 mb-5">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary font-bold text-2xl font-mono shrink-0">
+                  {project.tokenSymbol.charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <h1 className="text-2xl font-bold text-foreground">{project.name}</h1>
+                    <StatusBadge status={project.issuerVerified} size="md" />
+                  </div>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className="text-sm text-muted-foreground font-mono">${project.tokenSymbol}</span>
+                    <span className="text-muted-foreground/50">|</span>
+                    <div className="flex items-center gap-1">
+                      <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">{project.issuerName}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-secondary mb-5">
+                <span className="text-xs text-muted-foreground shrink-0">Token Address:</span>
+                <code className="text-xs font-mono text-foreground truncate">{project.tokenAddress}</code>
+                <button onClick={copyAddress} className="p-1 rounded hover:bg-muted shrink-0">
+                  <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+                <button className="p-1 rounded hover:bg-muted shrink-0">
+                  <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+              </div>
+
+              <h2 className="text-sm font-semibold text-foreground mb-2">About</h2>
+              <p className="text-sm text-muted-foreground leading-relaxed mb-5">
+                {project.description}
+              </p>
+
+              <h2 className="text-sm font-semibold text-foreground mb-2">Profitability Strategy</h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {project.profitabilityStrategy}
+              </p>
+            </div>
+
+            {/* Supply Progress */}
+            <div className="card-elevated rounded-2xl p-6">
+              <h2 className="text-sm font-semibold text-foreground mb-4">Token Sale Progress</h2>
+              <div className="mb-3">
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-muted-foreground">Sold: {(project.totalSupply - project.availableSupply).toLocaleString()} tokens</span>
+                  <span className="text-primary font-semibold">{soldPercent.toFixed(1)}%</span>
+                </div>
+                <div className="h-3 rounded-full bg-secondary overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{
+                      width: `${soldPercent}%`,
+                      background: 'var(--gradient-primary)',
+                    }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                  <span>0</span>
+                  <span>{project.totalSupply.toLocaleString()} total</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-4">
+            {/* Stats */}
+            <div className="card-elevated rounded-2xl p-5">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-primary" />
+                    <span className="text-sm text-muted-foreground">Token Price</span>
+                  </div>
+                  <span className="text-lg font-bold text-foreground font-mono">${project.priceUsd.toFixed(2)}</span>
+                </div>
+                <div className="border-t border-border" />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Coins className="h-4 w-4 text-accent" />
+                    <span className="text-sm text-muted-foreground">Available</span>
+                  </div>
+                  <span className="text-sm font-semibold text-foreground font-mono">{project.availableSupply.toLocaleString()}</span>
+                </div>
+                <div className="border-t border-border" />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4 text-info" />
+                    <span className="text-sm text-muted-foreground">Capital Raised</span>
+                  </div>
+                  <span className="text-sm font-semibold text-foreground font-mono">${capitalRaised.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="card-elevated rounded-2xl p-5 space-y-3">
+              <button
+                onClick={() => {
+                  if (!state.currentUser) {
+                    toast({ title: 'Sign in required', description: 'Please sign in to purchase tokens.', variant: 'destructive' });
+                    return;
+                  }
+                  setShowBuy(true);
+                }}
+                className="btn-primary w-full flex items-center justify-center gap-2 text-sm py-3"
+              >
+                <ShoppingCart className="h-4 w-4" />
+                Buy Tokens
+              </button>
+              <button
+                onClick={() => {
+                  toast({ title: 'Claim initiated', description: 'Yield/dividend claim would execute on-chain.' });
+                }}
+                className="btn-accent w-full flex items-center justify-center gap-2 text-sm py-3"
+              >
+                <Gift className="h-4 w-4" />
+                Claim Dividends
+              </button>
+              <button
+                onClick={() => {
+                  if (!state.currentUser) {
+                    toast({ title: 'Sign in required', description: 'Please sign in to file a complaint.', variant: 'destructive' });
+                    return;
+                  }
+                  setShowComplaint(true);
+                }}
+                className="w-full flex items-center justify-center gap-2 text-sm py-2.5 text-muted-foreground hover:text-destructive transition-colors"
+              >
+                <AlertTriangle className="h-4 w-4" />
+                Submit Complaint
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {showBuy && <BuyModal project={project} onClose={() => setShowBuy(false)} />}
+      {showComplaint && <ComplaintModal projectId={project.id} onClose={() => setShowComplaint(false)} />}
+    </Layout>
+  );
+}
+
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import Layout from '@/components/Layout';
+import { useAppStore, generateId } from '@/lib/store';
+import StatusBadge from '@/components/StatusBadge';
+import { useToast } from '@/hooks/use-toast';
+import type { VerificationStatus } from '@/lib/types';
+import {
+  Shield, Users, Search, StickyNote, ChevronDown,
+  ChevronUp, Send, Building2, User, ShoppingCart,
+  Clock, CheckCircle, XCircle, Ban,
+} from 'lucide-react';
+
+const statusOptions: { value: VerificationStatus; label: string; icon: React.ElementType }[] = [
+  { value: 'verified', label: 'Verified', icon: CheckCircle },
+  { value: 'under_review', label: 'Under Review', icon: Clock },
+  { value: 'not_verified', label: 'Not Verified', icon: XCircle },
+  { value: 'blocked', label: 'Blocked', icon: Ban },
+];
+
+const roleIcons: Record<string, React.ElementType> = {
+  BUSINESS: Building2,
+  INDIVIDUAL: User,
+  BUYER: ShoppingCart,
+  ADMIN: Shield,
+};
+
+export default function AdminPanel() {
+  const { state, dispatch } = useAppStore();
+  const { toast } = useToast();
+  const user = state.currentUser;
+
+  const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | VerificationStatus>('all');
+  const [filterRole, setFilterRole] = useState<'all' | string>('all');
+  const [expandedUser, setExpandedUser] = useState<string | null>(null);
+  const [noteText, setNoteText] = useState<Record<string, string>>({});
+
+  if (!user || user.role !== 'ADMIN') {
+    return (
+      <Layout>
+        <div className="container mx-auto px-4 py-20 text-center">
+          <p className="text-muted-foreground">Admin access required.</p>
+          <Link to="/login" className="text-primary text-sm hover:underline mt-4 inline-block">Sign in</Link>
+        </div>
+      </Layout>
+    );
+  }
+
+  const filteredUsers = state.users.filter(u => {
+    if (u.role === 'ADMIN') return false;
+    const matchesSearch =
+      u.firstName.toLowerCase().includes(search.toLowerCase()) ||
+      u.lastName.toLowerCase().includes(search.toLowerCase()) ||
+      u.email.toLowerCase().includes(search.toLowerCase()) ||
+      (u.legalEntityName || '').toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = filterStatus === 'all' || u.verificationStatus === filterStatus;
+    const matchesRole = filterRole === 'all' || u.role === filterRole;
+    return matchesSearch && matchesStatus && matchesRole;
+  });
+
+  const pendingCount = state.users.filter(u => u.verificationStatus === 'under_review' && u.role !== 'ADMIN').length;
+  const verifiedCount = state.users.filter(u => u.verificationStatus === 'verified' && u.role !== 'ADMIN').length;
+  const blockedCount = state.users.filter(u => u.verificationStatus === 'blocked').length;
+
+  function changeStatus(userId: string, status: VerificationStatus) {
+    dispatch({ type: 'UPDATE_VERIFICATION', payload: { userId, status } });
+    toast({ title: 'Status updated', description: `User verification set to ${status.replace('_', ' ')}.` });
+  }
+
+  function submitNote(targetUserId: string) {
+    const text = noteText[targetUserId]?.trim();
+    if (!text) return;
+    dispatch({
+      type: 'ADD_ADMIN_NOTE',
+      payload: {
+        id: generateId(),
+        adminId: user!.id,
+        targetUserId,
+        note: text,
+        createdAt: new Date().toISOString(),
+      },
+    });
+    setNoteText(prev => ({ ...prev, [targetUserId]: '' }));
+    toast({ title: 'Note added' });
+  }
+
+  return (
+    <Layout>
+      <div className="container mx-auto px-4 py-8 lg:py-12">
+        <div className="flex items-center gap-3 mb-8">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+            <Shield className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Admin Panel</h1>
+            <p className="text-sm text-muted-foreground">Manage user verifications and registrations</p>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+          <div className="stat-card">
+            <Clock className="h-5 w-5 text-warning mb-2" />
+            <p className="text-2xl font-bold text-foreground font-mono">{pendingCount}</p>
+            <p className="text-xs text-muted-foreground">Pending Review</p>
+          </div>
+          <div className="stat-card">
+            <CheckCircle className="h-5 w-5 text-success mb-2" />
+            <p className="text-2xl font-bold text-foreground font-mono">{verifiedCount}</p>
+            <p className="text-xs text-muted-foreground">Verified Users</p>
+          </div>
+          <div className="stat-card">
+            <Ban className="h-5 w-5 text-destructive mb-2" />
+            <p className="text-2xl font-bold text-foreground font-mono">{blockedCount}</p>
+            <p className="text-xs text-muted-foreground">Blocked Accounts</p>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by name, email, or entity..."
+              className="input-field pl-10"
+            />
+          </div>
+          <select
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value as typeof filterStatus)}
+            className="input-field w-auto"
+          >
+            <option value="all">All Statuses</option>
+            <option value="under_review">Under Review</option>
+            <option value="verified">Verified</option>
+            <option value="not_verified">Not Verified</option>
+            <option value="blocked">Blocked</option>
+          </select>
+          <select
+            value={filterRole}
+            onChange={e => setFilterRole(e.target.value)}
+            className="input-field w-auto"
+          >
+            <option value="all">All Roles</option>
+            <option value="BUSINESS">Business</option>
+            <option value="INDIVIDUAL">Individual</option>
+            <option value="BUYER">Buyer</option>
+          </select>
+        </div>
+
+        {/* User list */}
+        <div className="space-y-3">
+          {filteredUsers.length === 0 ? (
+            <div className="card-elevated rounded-2xl p-10 text-center">
+              <Users className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+              <p className="text-muted-foreground">No users match your filters.</p>
+            </div>
+          ) : (
+            filteredUsers.map(u => {
+              const RoleIcon = roleIcons[u.role] || User;
+              const isExpanded = expandedUser === u.id;
+              const userNotes = state.adminNotes.filter(n => n.targetUserId === u.id);
+
+              return (
+                <div key={u.id} className="card-elevated rounded-2xl overflow-hidden">
+                  <button
+                    onClick={() => setExpandedUser(isExpanded ? null : u.id)}
+                    className="w-full flex items-center justify-between p-5 text-left hover:bg-secondary/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary text-muted-foreground">
+                        <RoleIcon className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-semibold text-foreground">{u.firstName} {u.lastName}</span>
+                          <StatusBadge status={u.verificationStatus} />
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs text-muted-foreground">{u.email}</span>
+                          <span className="text-muted-foreground/40">|</span>
+                          <span className="text-xs text-muted-foreground">{u.role}</span>
+                          {u.legalEntityName && (
+                            <>
+                              <span className="text-muted-foreground/40">|</span>
+                              <span className="text-xs text-muted-foreground">{u.legalEntityName}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    {isExpanded ? (
+                      <ChevronUp className="h-5 w-5 text-muted-foreground shrink-0" />
+                    ) : (
+                      <ChevronDown className="h-5 w-5 text-muted-foreground shrink-0" />
+                    )}
+                  </button>
+
+                  {isExpanded && (
+                    <div className="border-t border-border p-5 bg-secondary/20 animate-slide-up">
+                      <div className="grid sm:grid-cols-2 gap-6">
+                        {/* User Details */}
+                        <div>
+                          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">User Details</h4>
+                          <div className="space-y-2 text-sm">
+                            {u.phone && (
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Phone</span>
+                                <span className="text-foreground">{u.phone}</span>
+                              </div>
+                            )}
+                            {u.citizenship && (
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Citizenship</span>
+                                <span className="text-foreground">{u.citizenship}</span>
+                              </div>
+                            )}
+                            {u.representativePosition && (
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Position</span>
+                                <span className="text-foreground">{u.representativePosition}</span>
+                              </div>
+                            )}
+                            {u.countryOfIncorporation && (
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Country</span>
+                                <span className="text-foreground">{u.countryOfIncorporation}</span>
+                              </div>
+                            )}
+                            {u.projectName && (
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Project</span>
+                                <span className="text-foreground">{u.projectName}</span>
+                              </div>
+                            )}
+                            {u.projectDescription && (
+                              <div>
+                                <span className="text-muted-foreground block mb-1">Project Description</span>
+                                <p className="text-foreground text-xs leading-relaxed p-2 rounded-lg bg-secondary">{u.projectDescription}</p>
+                              </div>
+                            )}
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Registered</span>
+                              <span className="text-foreground">{new Date(u.createdAt).toLocaleDateString()}</span>
+                            </div>
+                          </div>
+
+                          {/* Status Controls */}
+                          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-5 mb-3">Change Status</h4>
+                          <div className="grid grid-cols-2 gap-2">
+                            {statusOptions.map(opt => (
+                              <button
+                                key={opt.value}
+                                onClick={() => changeStatus(u.id, opt.value)}
+                                disabled={u.verificationStatus === opt.value}
+                                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors disabled:opacity-30 ${
+                                  opt.value === 'verified' ? 'bg-primary/10 text-primary hover:bg-primary/20' :
+                                  opt.value === 'under_review' ? 'bg-warning/10 text-warning hover:bg-warning/20' :
+                                  opt.value === 'not_verified' ? 'bg-destructive/10 text-destructive hover:bg-destructive/20' :
+                                  'bg-destructive/10 text-destructive hover:bg-destructive/20'
+                                }`}
+                              >
+                                <opt.icon className="h-3.5 w-3.5" />
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Notes */}
+                        <div>
+                          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                            <StickyNote className="h-3.5 w-3.5 inline mr-1" />
+                            Internal Notes ({userNotes.length})
+                          </h4>
+
+                          {userNotes.length > 0 && (
+                            <div className="space-y-2 mb-3 max-h-48 overflow-y-auto">
+                              {userNotes.map(note => (
+                                <div key={note.id} className="p-2.5 rounded-lg bg-secondary text-xs">
+                                  <p className="text-foreground leading-relaxed">{note.note}</p>
+                                  <p className="text-muted-foreground mt-1.5">
+                                    {new Date(note.createdAt).toLocaleString()}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="flex gap-2">
+                            <input
+                              value={noteText[u.id] || ''}
+                              onChange={e => setNoteText(prev => ({ ...prev, [u.id]: e.target.value }))}
+                              placeholder="Add internal note..."
+                              className="input-field text-xs"
+                              onKeyDown={e => e.key === 'Enter' && submitNote(u.id)}
+                            />
+                            <button
+                              onClick={() => submitNote(u.id)}
+                              className="p-2.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors shrink-0"
+                            >
+                              <Send className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </Layout>
+  );
+}
