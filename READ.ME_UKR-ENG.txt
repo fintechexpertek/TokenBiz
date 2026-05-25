@@ -1,0 +1,113 @@
+Як запустити проект
+Що потрібно встановити перед початком
+1. Docker — для бази даних
+Відкрий термінал і введи:
+
+
+sudo apt install docker.io docker-compose-v2 -y
+sudo usermod -aG docker $USER
+newgrp docker
+2. Python 3.12
+
+
+sudo apt install python3 python3-venv -y
+3. Node.js
+
+
+sudo apt install nodejs npm -y
+Запуск (робиш один раз)
+Крок 1 — розпакуй архів. Отримаєш дві папки: elena і elena-backend
+
+Крок 2 — відкрий термінал в папці elena-backend і запусти базу даних:
+
+
+docker compose up db -d
+Крок 3 — встанови Python залежності:
+
+
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+Крок 4 — запусти бекенд (API):
+
+
+uvicorn main:app --reload
+Термінал зупиниться — це нормально, він працює. Відкрий новий термінал.
+
+Крок 5 — в новому терміналі перейди в папку elena і запусти сайт:
+
+
+cd ../elena
+npm install
+npm run dev
+Готово
+Відкрий браузер і перейди на:
+
+👉 http://localhost:5173 — сам сайт
+
+👉 http://localhost:8000/docs — список всіх API запитів (для розробників)
+
+Якщо щось не працює
+Перевір що всі три термінали запущені одночасно:
+
+термінал 1: база даних (docker)
+термінал 2: бекенд (uvicorn)
+термінал 3: фронтенд (npm run dev)
+
+
+
+How to Run the Project
+What You Need to Install First
+1. Docker — for the database
+Open terminal and run:
+
+
+sudo apt install docker.io docker-compose-v2 -y
+sudo usermod -aG docker $USER
+newgrp docker
+2. Python 3.12
+
+
+sudo apt install python3 python3-venv -y
+3. Node.js
+
+
+sudo apt install nodejs npm -y
+Starting the Project (do this once)
+Step 1 — unzip the archive. You will get two folders: elena and elena-backend
+
+Step 2 — open terminal in the elena-backend folder and start the database:
+
+
+docker compose up db -d
+Step 3 — install Python dependencies:
+
+
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+Step 4 — start the backend (API):
+
+
+uvicorn main:app --reload
+The terminal will stop scrolling — that's normal, it's running. Open a new terminal.
+
+Step 5 — in the new terminal go to the elena folder and start the website:
+
+
+cd ../elena
+npm install
+npm run dev
+Done
+Open your browser and go to:
+
+👉 http://localhost:5173 — the website
+
+👉 http://localhost:8000/docs — full API documentation (for developers)
+
+If Something Doesn't Work
+Make sure all three terminals are running at the same time:
+
+terminal 1: database (docker)
+terminal 2: backend (uvicorn)
+terminal 3: frontend (npm run dev)
